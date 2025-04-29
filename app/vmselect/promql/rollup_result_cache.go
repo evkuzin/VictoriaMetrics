@@ -70,7 +70,6 @@ func ResetRollupResultCacheIfNeeded(mrs []storage.MetricRow) {
 
 func checkRollupResultCacheReset() {
 	for {
-		time.Sleep(checkRollupResultCacheResetInterval)
 		if needRollupResultCacheReset.Swap(false) {
 			mr := rollupResultResetMetricRowSample.Load()
 			d := int64(fasttime.UnixTimestamp()*1000) - mr.Timestamp - cacheTimestampOffset.Milliseconds()
@@ -78,6 +77,7 @@ func checkRollupResultCacheReset() {
 				mr.String(), cacheTimestampOffset, float64(d)/1e3)
 			ResetRollupResultCache()
 		}
+		time.Sleep(checkRollupResultCacheResetInterval)
 	}
 }
 

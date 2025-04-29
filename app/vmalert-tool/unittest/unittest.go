@@ -40,7 +40,7 @@ var (
 	storagePath    string
 	httpListenAddr = ":8880"
 	// insert series from 1970-01-01T00:00:00
-	testStartTime = time.Unix(0, 0).UTC()
+	testStartTime = time.Now().UTC()
 
 	testPromWriteHTTPPath = "http://127.0.0.1" + httpListenAddr + "/api/v1/write"
 	testDataSourcePath    = "http://127.0.0.1" + httpListenAddr + "/prometheus"

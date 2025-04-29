@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime/pprof"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -14,6 +15,16 @@ import (
 
 func main() {
 	start := time.Now()
+	f, err := os.Create("cpu.pprof")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	if err := pprof.StartCPUProfile(f); err != nil {
+		panic(err)
+	}
+	defer pprof.StopCPUProfile()
 	app := &cli.App{
 		Name:      "vmalert-tool",
 		Usage:     "VMAlert command-line tool",
