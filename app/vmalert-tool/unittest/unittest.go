@@ -428,6 +428,10 @@ func (tg *testGroup) test(evalInterval time.Duration, groupOrderMap map[string]i
 
 				}
 			}
+			htmlDiff, err := os.Open("./" + tg.TestGroupName + ".html")
+			if err != nil {
+				logger.Warnf("failed to open file for html diff: %v", err)
+			}
 			for groupname, gres := range alertExpResultMap[alertEvalTimes[evalIndex]] {
 				for alertname, res := range gres {
 					var expAlerts labelsAndAnnotations
@@ -457,12 +461,18 @@ func (tg *testGroup) test(evalInterval time.Duration, groupOrderMap map[string]i
 						}
 						expString := indentLines(expAlerts.String(), "            ")
 						gotString := indentLines(gotAlerts.String(), "            ")
-						dmp := diffmatchpatch.New()
+						if htmlDiff != nil {
+							dmp := diffmatchpatch.New()
 
-						diffs := dmp.DiffMain(expString, gotString, false)
-
-						checkErrs = append(checkErrs, fmt.Errorf("\n%s    groupname: %s, alertname: %s, time: %s, \n        exp:%v, \n        got:%v, \n          diff: %v",
-							testGroupName, groupname, alertname, alertEvalTimes[evalIndex].String(), expString, gotString, dmp.DiffPrettyText(diffs)))
+							diffs := dmp.DiffMain(expString, gotString, false)
+							_, err = htmlDiff.WriteString(dmp.DiffPrettyHtml(diffs))
+							if err != nil {
+								logger.Warnf("failed to diff html: %v", err)
+							}
+						}
+						htmlDiff.Close()
+						checkErrs = append(checkErrs, fmt.Errorf("\n%s    groupname: %s, alertname: %s, time: %s, \n        exp:%v, \n        got:%v",
+							testGroupName, groupname, alertname, alertEvalTimes[evalIndex].String(), expString, gotString))
 					}
 				}
 			}
