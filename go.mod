@@ -58,6 +58,7 @@ require (
 	github.com/klauspost/compress v1.18.0
 	github.com/mattn/go-isatty v0.0.20
 	github.com/prometheus/prometheus v0.303.0
+	github.com/sergi/go-diff v1.3.1
 	github.com/urfave/cli/v2 v2.27.6
 	github.com/valyala/fastjson v1.6.4
 	github.com/valyala/fastrand v1.1.0

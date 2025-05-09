@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime/pprof"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -41,6 +42,11 @@ Examples:
 						Usage:    "disable adding group's Name as label to generated alerts and time series.",
 						Required: false,
 					},
+					&cli.BoolFlag{
+						Name:     "enableProfiling",
+						Usage:    "enable profiling for the vmalert tool. This will be saved to /tmp/vmalert.prof.",
+						Required: false,
+					},
 					&cli.StringSliceFlag{
 						Name:     "external.label",
 						Usage:    `Optional label in the form 'name=value' to add to all generated recording rules and alerts. Supports an array of values separated by comma or specified via multiple flags.`,
@@ -63,6 +69,21 @@ Examples:
 					},
 				},
 				Action: func(c *cli.Context) error {
+					var profFile *os.File
+					var err error
+					if c.Bool("enableProfiling") {
+						profFile, err = os.Create("/tmp/vmalert.prof")
+						if err != nil {
+							return fmt.Errorf("failed to create profile file: %w", err)
+						}
+						if err := pprof.StartCPUProfile(profFile); err != nil {
+							return fmt.Errorf("failed to start CPU profiling: %w", err)
+						}
+						defer func() {
+							pprof.StopCPUProfile()
+							profFile.Close()
+						}()
+					}
 					if failed := unittest.UnitTest(c.StringSlice("files"), c.Bool("disableAlertgroupLabel"), c.StringSlice("external.label"), c.String("external.url"), c.String("httpListenPort"), c.String("loggerLevel")); failed {
 						return fmt.Errorf("unittest failed")
 					}

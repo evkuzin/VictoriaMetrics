@@ -18,8 +18,6 @@ import (
 	"syscall"
 	"time"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/config"
 	vmalertconfig "github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/config"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/datasource"
@@ -38,6 +36,8 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/logger"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/promutil"
 	"github.com/VictoriaMetrics/metrics"
+	"github.com/sergi/go-diff/diffmatchpatch"
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -137,12 +137,13 @@ func UnitTest(files []string, disableGroupLabel bool, externalLabels []string, e
 	var failed bool
 	runTest := func() bool {
 		for fileName, file := range testfiles {
+			start := time.Now()
 			if err := ruleUnitTest(fileName, file, labels); err != nil {
-				fmt.Println("FAILED")
+				fmt.Printf("FAILED, exec time: %s\n", time.Since(start).String())
 				fmt.Printf("failed to run unit test for file %q: \n%v", fileName, err)
 				return true
 			}
-			fmt.Println("SUCCESS")
+			fmt.Printf("SUCCESS, exec time: %s\n", time.Since(start).String())
 		}
 		return false
 	}
@@ -456,8 +457,12 @@ func (tg *testGroup) test(evalInterval time.Duration, groupOrderMap map[string]i
 						}
 						expString := indentLines(expAlerts.String(), "            ")
 						gotString := indentLines(gotAlerts.String(), "            ")
-						checkErrs = append(checkErrs, fmt.Errorf("\n%s    groupname: %s, alertname: %s, time: %s, \n        exp:%v, \n        got:%v ",
-							testGroupName, groupname, alertname, alertEvalTimes[evalIndex].String(), expString, gotString))
+						dmp := diffmatchpatch.New()
+
+						diffs := dmp.DiffMain(expString, gotString, false)
+
+						checkErrs = append(checkErrs, fmt.Errorf("\n%s    groupname: %s, alertname: %s, time: %s, \n        exp:%v, \n        got:%v, \n          diff: %v",
+							testGroupName, groupname, alertname, alertEvalTimes[evalIndex].String(), expString, gotString, dmp.DiffPrettyText(diffs)))
 					}
 				}
 			}
