@@ -138,9 +138,13 @@ func UnitTest(files []string, disableGroupLabel bool, externalLabels []string, e
 	runTest := func() bool {
 		for fileName, file := range testfiles {
 			start := time.Now()
-			if err := ruleUnitTest(fileName, file, labels); err != nil {
+			if err, diff := ruleUnitTest(fileName, file, labels); err != nil {
 				fmt.Printf("FAILED, exec time: %s\n", time.Since(start).String())
 				fmt.Printf("failed to run unit test for file %q: \n%v", fileName, err)
+				err := os.WriteFile(fileName+".html", []byte(diff), 0644)
+				if err != nil {
+					logger.Fatalf("failed to write html report %q: %v", fileName+".html", err)
+				}
 				return true
 			}
 			fmt.Printf("SUCCESS, exec time: %s\n", time.Since(start).String())
@@ -167,11 +171,11 @@ func UnitTest(files []string, disableGroupLabel bool, externalLabels []string, e
 	return failed
 }
 
-func ruleUnitTest(filename string, content []byte, externalLabels map[string]string) []error {
+func ruleUnitTest(filename string, content []byte, externalLabels map[string]string) ([]error, string) {
 	fmt.Println("\n\nUnit Testing: ", filename)
 	var unitTestInp unitTestFile
 	if err := yaml.UnmarshalStrict(content, &unitTestInp); err != nil {
-		return []error{fmt.Errorf("failed to unmarshal file: %w", err)}
+		return []error{fmt.Errorf("failed to unmarshal file: %w", err)}, ""
 	}
 
 	// add file directory for rule files if needed
@@ -189,33 +193,35 @@ func ruleUnitTest(filename string, content []byte, externalLabels map[string]str
 	groupOrderMap := make(map[string]int)
 	for i, gn := range unitTestInp.GroupEvalOrder {
 		if _, ok := groupOrderMap[gn]; ok {
-			return []error{fmt.Errorf("group name repeated in `group_eval_order`: %s", gn)}
+			return []error{fmt.Errorf("group name repeated in `group_eval_order`: %s", gn)}, ""
 		}
 		groupOrderMap[gn] = i
 	}
 
 	testGroups, err := vmalertconfig.Parse(unitTestInp.RuleFiles, nil, true)
 	if err != nil {
-		return []error{fmt.Errorf("failed to parse `rule_files`: %w", err)}
+		return []error{fmt.Errorf("failed to parse `rule_files`: %w", err)}, ""
 	}
 	if len(testGroups) == 0 {
-		return []error{fmt.Errorf("found no rule group in %v", unitTestInp.RuleFiles)}
+		return []error{fmt.Errorf("found no rule group in %v", unitTestInp.RuleFiles)}, ""
 	}
 
 	var errs []error
+	var report string
 	for _, t := range unitTestInp.Tests {
 		if err := verifyTestGroup(t); err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		testErrs := t.test(unitTestInp.EvaluationInterval.Duration(), groupOrderMap, testGroups, externalLabels)
+		testErrs, diffPretty := t.test(unitTestInp.EvaluationInterval.Duration(), groupOrderMap, testGroups, externalLabels)
 		errs = append(errs, testErrs...)
+		report += diffPretty
 	}
 
 	if len(errs) > 0 {
-		return errs
+		return errs, report
 	}
-	return nil
+	return nil, ""
 }
 
 func verifyTestGroup(group testGroup) error {
@@ -306,7 +312,7 @@ func tearDown() {
 	fs.MustRemoveAll(storagePath)
 }
 
-func (tg *testGroup) test(evalInterval time.Duration, groupOrderMap map[string]int, testGroups []vmalertconfig.Group, externalLabels map[string]string) (checkErrs []error) {
+func (tg *testGroup) test(evalInterval time.Duration, groupOrderMap map[string]int, testGroups []vmalertconfig.Group, externalLabels map[string]string) (checkErrs []error, htmlReport string) {
 	// set up vmstorage and http server for ingest and read queries
 	setUp()
 	// tear down vmstorage and clean the data dir
@@ -317,16 +323,16 @@ func (tg *testGroup) test(evalInterval time.Duration, groupOrderMap map[string]i
 	}
 	err := writeInputSeries(tg.InputSeries, tg.Interval, testStartTime, fmt.Sprintf("http://127.0.0.1:%s/api/v1/write", httpListenAddr))
 	if err != nil {
-		return []error{err}
+		return []error{err}, ""
 	}
 
 	q, err := datasource.Init(nil)
 	if err != nil {
-		return []error{fmt.Errorf("failed to init datasource: %v", err)}
+		return []error{fmt.Errorf("failed to init datasource: %v", err)}, ""
 	}
 	rw, err := remotewrite.NewDebugClient()
 	if err != nil {
-		return []error{fmt.Errorf("failed to init wr: %v", err)}
+		return []error{fmt.Errorf("failed to init wr: %v", err)}, ""
 	}
 
 	alertEvalTimesMap := map[time.Duration]struct{}{}
@@ -428,10 +434,7 @@ func (tg *testGroup) test(evalInterval time.Duration, groupOrderMap map[string]i
 
 				}
 			}
-			htmlDiff, err := os.Open("./" + tg.TestGroupName + ".html")
-			if err != nil {
-				logger.Warnf("failed to open file for html diff: %v", err)
-			}
+
 			for groupname, gres := range alertExpResultMap[alertEvalTimes[evalIndex]] {
 				for alertname, res := range gres {
 					var expAlerts labelsAndAnnotations
@@ -461,16 +464,9 @@ func (tg *testGroup) test(evalInterval time.Duration, groupOrderMap map[string]i
 						}
 						expString := indentLines(expAlerts.String(), "            ")
 						gotString := indentLines(gotAlerts.String(), "            ")
-						if htmlDiff != nil {
-							dmp := diffmatchpatch.New()
-
-							diffs := dmp.DiffMain(expString, gotString, false)
-							_, err = htmlDiff.WriteString(dmp.DiffPrettyHtml(diffs))
-							if err != nil {
-								logger.Warnf("failed to diff html: %v", err)
-							}
-						}
-						htmlDiff.Close()
+						dmp := diffmatchpatch.New()
+						diffs := dmp.DiffMain(expString, gotString, false)
+						htmlReport += dmp.DiffPrettyHtml(diffs)
 						checkErrs = append(checkErrs, fmt.Errorf("\n%s    groupname: %s, alertname: %s, time: %s, \n        exp:%v, \n        got:%v",
 							testGroupName, groupname, alertname, alertEvalTimes[evalIndex].String(), expString, gotString))
 					}
@@ -482,7 +478,7 @@ func (tg *testGroup) test(evalInterval time.Duration, groupOrderMap map[string]i
 	}
 
 	checkErrs = append(checkErrs, checkMetricsqlCase(tg.MetricsqlExprTests, q)...)
-	return checkErrs
+	return checkErrs, htmlReport
 }
 
 // unitTestFile holds the contents of a single unit test file
