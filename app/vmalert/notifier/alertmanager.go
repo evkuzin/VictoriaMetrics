@@ -46,7 +46,7 @@ type notifierMetrics struct {
 func newNotifierMetrics(addr string) *notifierMetrics {
 	set := metrics.NewSet()
 	metrics.RegisterSet(set)
-
+	logger.Infof("DEBUG: newNotifierMetrics processing alertmanager: %s", addr)
 	return &notifierMetrics{
 		set:                set,
 		alertsSent:         set.NewCounter(fmt.Sprintf("vmalert_alerts_sent_total{addr=%q}", addr)),
@@ -194,7 +194,6 @@ func NewAlertManager(alertManagerURL string, fn AlertURLGenerator, authCfg proma
 	if !*showNotifierURL {
 		alertManagerURL = amURL.Redacted()
 	}
-	logger.Infof("DEBUG: processing new alertmanager: %s", amURL)
 	return &AlertManager{
 		addr:           amURL,
 		argFunc:        fn,
