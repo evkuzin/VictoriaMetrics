@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/logger"
 	"io"
 	"net/http"
 	"net/url"
@@ -193,6 +194,7 @@ func NewAlertManager(alertManagerURL string, fn AlertURLGenerator, authCfg proma
 	if !*showNotifierURL {
 		alertManagerURL = amURL.Redacted()
 	}
+	logger.Infof("DEBUG: processing new alertmanager: %s", amURL)
 	return &AlertManager{
 		addr:           amURL,
 		argFunc:        fn,
