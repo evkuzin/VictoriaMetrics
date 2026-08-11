@@ -1,0 +1,16 @@
+rule_files:
+  - timeout-rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: "up"
+        values: "0x2"
+    alert_rule_test:
+      - eval_time: 1m
+        groupname: timeoutGroup
+        alertname: TimeoutAlert
+        exp_alerts:
+          - exp_labels: {}

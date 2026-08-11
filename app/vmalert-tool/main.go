@@ -61,9 +61,15 @@ Examples:
 						Usage:    `Minimum level of errors to log. Possible values: INFO, WARN, ERROR, FATAL, PANIC (default "ERROR").`,
 						Required: false,
 					},
+					&cli.DurationFlag{
+						Name: "queryTimeout",
+						Usage: `Timeout for a single rule evaluation. It protects from a datasource which accepts the connection but never responds, ` +
+							`in which case the unit test would hang forever. Zero means no timeout.`,
+						Required: false,
+					},
 				},
 				Action: func(c *cli.Context) error {
-					if failed := unittest.UnitTest(c.StringSlice("files"), c.Bool("disableAlertgroupLabel"), c.StringSlice("external.label"), c.String("external.url"), c.String("httpListenPort"), c.String("loggerLevel")); failed {
+					if failed := unittest.UnitTest(c.StringSlice("files"), c.Bool("disableAlertgroupLabel"), c.StringSlice("external.label"), c.String("external.url"), c.String("httpListenPort"), c.String("loggerLevel"), c.Duration("queryTimeout")); failed {
 						return fmt.Errorf("unittest failed")
 					}
 					return nil

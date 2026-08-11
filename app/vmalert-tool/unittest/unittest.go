@@ -48,7 +48,17 @@ var (
 	testStartTime          = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	testLogLevel           = "ERROR"
 	disableAlertgroupLabel bool
+	queryTimeout           time.Duration
 )
+
+// evalContext returns the context for a single rule evaluation.
+// The returned cancel func must be called by the caller.
+func evalContext() (context.Context, context.CancelFunc) {
+	if queryTimeout <= 0 {
+		return context.WithCancel(context.Background())
+	}
+	return context.WithTimeout(context.Background(), queryTimeout)
+}
 
 func durationToTime(pd *promutil.Duration) time.Time {
 	if pd == nil {
@@ -62,7 +72,7 @@ const (
 )
 
 // UnitTest runs unittest for files
-func UnitTest(files []string, disableGroupLabel bool, externalLabels []string, externalURL, httpListenPort, logLevel string) bool {
+func UnitTest(files []string, disableGroupLabel bool, externalLabels []string, externalURL, httpListenPort, logLevel string, evalQueryTimeout time.Duration) bool {
 	if logLevel != "" {
 		testLogLevel = logLevel
 	}
@@ -123,6 +133,7 @@ func UnitTest(files []string, disableGroupLabel bool, externalLabels []string, e
 	defer vminsert.Stop()
 	defer vmselect.Stop()
 	disableAlertgroupLabel = disableGroupLabel
+	queryTimeout = evalQueryTimeout
 
 	testfiles, err := vmalertconfig.ReadFromFS(files)
 	if err != nil {
@@ -386,13 +397,19 @@ func (tg *testGroup) test(evalInterval time.Duration, groupOrderMap map[string]i
 			if len(g.Rules) == 0 {
 				continue
 			}
-			errs := g.ExecOnce(context.Background(), rw, ts)
+			execCtx, cancelExec := evalContext()
+			errs := g.ExecOnce(execCtx, rw, ts)
+			var execErr error
 			for err := range errs {
-				if err != nil {
-					checkErrs = append(checkErrs, fmt.Errorf("\nfailed to exec group: %q, time: %s, err: %w", g.Name,
-						ts, err))
-					return
+				if err != nil && execErr == nil {
+					execErr = err
 				}
+			}
+			cancelExec()
+			if execErr != nil {
+				checkErrs = append(checkErrs, fmt.Errorf("\nfailed to exec group: %q, time: %s, err: %w", g.Name,
+					ts, execErr))
+				return
 			}
 			// flush series after each group evaluation
 			vmstorage.DebugFlush()

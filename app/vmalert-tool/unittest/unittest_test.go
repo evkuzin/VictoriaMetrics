@@ -8,7 +8,7 @@ func TestUnitTest_Failure(t *testing.T) {
 	f := func(files []string) {
 		t.Helper()
 
-		failed := UnitTest(files, false, nil, "", "", "")
+		failed := UnitTest(files, false, nil, "", "", "", 0)
 		if !failed {
 			t.Fatalf("expecting failed test")
 		}
@@ -23,7 +23,7 @@ func TestUnitTest_Success(t *testing.T) {
 	f := func(disableGroupLabel bool, files []string, externalLabels []string, externalURL, httpPort string) {
 		t.Helper()
 
-		failed := UnitTest(files, disableGroupLabel, externalLabels, externalURL, httpPort, "")
+		failed := UnitTest(files, disableGroupLabel, externalLabels, externalURL, httpPort, "", 0)
 		if failed {
 			t.Fatalf("unexpected failed test")
 		}

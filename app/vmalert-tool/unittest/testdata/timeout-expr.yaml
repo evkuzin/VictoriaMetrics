@@ -1,0 +1,16 @@
+rule_files:
+  - timeout-norules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: "up"
+        values: "0x2"
+    metricsql_expr_test:
+      - expr: up
+        eval_time: 1m
+        exp_samples:
+          - labels: 'up'
+            value: 0

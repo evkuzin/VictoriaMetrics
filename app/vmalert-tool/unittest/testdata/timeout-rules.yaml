@@ -1,0 +1,5 @@
+groups:
+  - name: timeoutGroup
+    rules:
+      - alert: TimeoutAlert
+        expr: up == 0

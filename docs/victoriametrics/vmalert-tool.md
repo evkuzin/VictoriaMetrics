@@ -323,4 +323,6 @@ Run `vmalert-tool unittest --help` to get all configuration options:
     Optional local port for incoming HTTP requests. If not specified, a random unoccupied port will be used.
   -loggerLevel
     Minimum level of errors to log. Possible values: INFO, WARN, ERROR, FATAL, PANIC (default "ERROR").
+  -queryTimeout
+    Timeout for a single rule evaluation. It protects from a datasource which accepts the connection but never responds, in which case the unit test would hang forever. Zero means no timeout. (default 0s)
 ```

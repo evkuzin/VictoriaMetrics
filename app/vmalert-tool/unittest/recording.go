@@ -1,7 +1,6 @@
 package unittest
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"reflect"
@@ -30,7 +29,9 @@ func checkMetricsqlCase(cases []metricsqlTestCase, q datasource.QuerierBuilder) 
 	queries := q.BuildWithParams(datasource.QuerierParams{QueryParams: url.Values{"nocache": {"1"}, "latency_offset": {"1ms"}}, DataSourceType: "prometheus"})
 Outer:
 	for _, mt := range cases {
-		result, _, err := queries.Query(context.Background(), mt.Expr, durationToTime(mt.EvalTime))
+		ctx, cancel := evalContext()
+		result, _, err := queries.Query(ctx, mt.Expr, durationToTime(mt.EvalTime))
+		cancel()
 		if err != nil {
 			checkErrs = append(checkErrs, fmt.Errorf("    expr: %q, time: %s, err: %w", mt.Expr,
 				mt.EvalTime.Duration().String(), err))
